@@ -1,0 +1,165 @@
+---
+title: "gee_views"
+output: html_document
+date: "2023-12-02"
+---
+
+# Library
+
+```{r}
+# analysis
+library(tidyverse)
+library(car)
+library(haven)
+# fit gee
+library(gee)
+library(glmtoolbox)
+# sandwich est
+library(geesmv)
+# pretty table
+library(sjPlot)
+library(gtsummary)
+library(labelled)
+library(flextable)
+library(webshot)
+```
+
+# Seed
+
+```{r}
+set.seed(3)
+```
+
+# Data
+
+```{r}
+df <- read_dta('publicrepfile.dta')
+```
+
+```{r}
+df1 <- df |> 
+  dplyr::select('GERMANE', 'prepost', 'VIEWS', 'TTID', 'treatment') |>
+  drop_na() |>
+  mutate_at(c('GERMANE', 'prepost', 'TTID', 'treatment'), 
+            as.factor) |>
+  filter(GERMANE != 3)
+```
+
+```{r}
+var_label(df1) <- list(GERMANE = "Related to mental health theme",
+                       prepost = "Pre or post treatment",
+                       VIEWS = "Views",
+                       TTID = "ID",
+                       treatment = "Treatment group")
+```
+
+
+# GEE
+
+```{r}
+fit1 <- glmgee(log(VIEWS+1) ~ treatment + prepost + GERMANE, 
+               data=df1, 
+               id = TTID, 
+               corstr = "exchangeable",
+               family=gaussian(identity))
+summary(fit1)
+```
+
+
+
+# Diagnostics
+
+The assumptions maintained by the GEE method are that: (1) the dependent variable be linearly related to the predictors (when the dependent variable is nnormally distributed a nonidentity link function is to be selected); (2) the num of clusters be relatively high (a rule of thumb is no fewer than 10, possibly more than 30; Norton et al., 1996); (3) the observations in different clusters be indepdent (although within-cluster observations may correlate)
+
+Check resids vs fitted/covariates, Pearson resids vs fitted/covariates
+
+GEE only requires the mean model to be correct
+
+scatterplot pairs of residuals
+
+## Residuals plot
+
+```{r}
+resid_deviance_fit1 <- residuals(fit1, type="deviance", plot.it=TRUE)
+resid_pearson_fit1 <- residuals(fit1, type="pearson", plot.it=TRUE)
+```
+
+
+## Leverage
+
+```{r}
+localInfluence_fit1 <- localInfluence(fit1, plot.it = T)
+```
+
+
+## Cook's distance
+
+```{r}
+cooks_distance_fit1 <- cooks.distance(fit1, level = 'observations', plot.it = T)
+cooks_distance_fit1[cooks_distance_fit1>0.5]
+```
+
+
+```{r}
+cooks_distance_cluster_fit1 <- cooks.distance(fit1, level = 'clusters', plot.it = T)
+cooks_distance_cluster_fit1[cooks_distance_cluster_fit1 > 0.5]
+```
+
+## Leave one cluster out
+
+```{r}
+dfbs1 <- dfbeta(fit1, method="full", coefs="treat", col="red", lty=1, lwd=1, col.lab="blue",
+         col.axis="blue", col.main="black", family="mono", cex=0.8, main="treat")
+```
+
+
+# Sandwich estimator
+
+```{r}
+# sandwich estimator by hand
+X <- model.matrix(fit1)
+W <- diag(fit1$fitted.values)
+
+J <- t(X) %*% W %*% X
+V <- t(X) %*% diag((m1$y - m1$fitted.values)^2) %*% X
+
+solve(J) %*% V %*% solve(J)
+```
+log(VIEWS+1) ~ treatment + prepost + GERMANE, 
+               data=df1, 
+               id = TTID, 
+               corstr = "exchangeable",
+               family=gaussian(identity)
+
+```{r}
+# using package
+GEE.var.wl(log(VIEWS+1) ~ treatment + prepost + GERMANE,
+           id=TTID,
+           family=gaussian,
+           data = df1,
+           corstr="exchangeable") 
+```
+
+
+# Inference
+
+```{r}
+fit2 <- glmgee(log(VIEWS+1) ~ prepost + GERMANE, 
+               data=df1, 
+               id = TTID, 
+               corstr = "exchangeable",
+               family=gaussian(identity))
+summary(fit2)
+```
+
+```{r}
+anova(fit1, fit2, test="wald")
+```
+
+```{r}
+knitr::write_bib(.packages(), "packages.bib")
+```
+```{r}
+citation("geesmv")
+```
+

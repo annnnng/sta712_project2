@@ -12,6 +12,8 @@ output: html_document
 library(tidyverse)
 library(car)
 library(haven)
+library(aods3)
+library(vcd)
 # residuals for glmm
 library(DHARMa)
 # fit glmm
@@ -108,6 +110,11 @@ summary(m1)
 ```
 
 ```{r}
+gof(m1)
+```
+
+
+```{r}
 m1 |>
   tbl_regression(
     exponentiate = TRUE,
@@ -131,11 +138,23 @@ webshot("model.html", "model.png")
 
 ## Diagnostics
 
+```{r}
+plot(m1)
+
+plot(m1,IID~resid(.))
+```
+
+
 ### Residuals plots
 
 ```{r}
 simulationOutput <- simulateResiduals(fittedModel = m1, plot = F)
 plot(simulationOutput)
+```
+
+
+```{r}
+rootogram(df1$VIEWS, predict(m1))
 ```
 
 
